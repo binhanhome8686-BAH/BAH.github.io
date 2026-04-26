@@ -1,4 +1,3 @@
-# BAH.github.io
 // ═══════════════════════════════════════════════════════════════════════════════
 // BÌNH AN HOUSE – Auth Backend (Google Apps Script)
 // Deploy: Extensions → Apps Script → Deploy → New deployment → Web app
