@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Bình An House – Hệ Thống Hoá Đơn</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 /* ── Reset & Base ─────────────────────────────────────────────────────────── */
@@ -196,6 +197,33 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);fon
 }
 
 
+
+/* ── Dashboard ───────────────────────────────────────────────────────────── */
+.kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.kpi-card{background:#fff;border:1px solid var(--border);border-radius:10px;padding:.875rem 1rem}
+.kpi-card .kpi-label{font-size:11px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.04em}
+.kpi-card .kpi-value{font-size:20px;font-weight:600;color:var(--navy);margin-top:4px;font-family:'Playfair Display',serif}
+.kpi-card .kpi-sub{font-size:11px;color:var(--muted);margin-top:3px}
+.kpi-card .kpi-growth{font-size:11px;font-weight:500;margin-top:3px}
+.growth-up{color:#2D6A4F}.growth-dn{color:#9B1C1C}
+.chart-card{background:#fff;border:1px solid var(--border);border-radius:10px;padding:1rem;margin-bottom:10px}
+.chart-card h4{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.75rem}
+.src-bar{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px}
+.src-bar-fill{height:8px;border-radius:4px;background:var(--sea);transition:width .4s}
+.src-bar-label{min-width:120px;color:var(--text)}
+.src-bar-count{color:var(--muted);margin-left:auto}
+.status-pills{display:flex;gap:8px;flex-wrap:wrap;margin-top:.5rem}
+/* History table */
+.hist-table{width:100%;border-collapse:collapse;font-size:12px}
+.hist-table th{padding:8px 10px;background:#F8FAFC;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border);text-align:left;position:sticky;top:0;z-index:1}
+.hist-table td{padding:8px 10px;border-bottom:1px solid #F0F3F8;color:var(--text);vertical-align:middle}
+.hist-table tr:hover td{background:#F8FAFC}
+.pill-paid{background:#EAF3DE;color:#2D6A4F;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:500;white-space:nowrap}
+.pill-pending{background:#FFFBEB;color:#92400E;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:500;white-space:nowrap}
+.pill-partial{background:#EFF6FF;color:#1E4D8C;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:500;white-space:nowrap}
+.hist-sum{background:#F8FAFC;padding:.75rem 1rem;border-radius:8px;margin-top:.75rem;display:flex;gap:1.5rem;font-size:12px;color:var(--muted)}
+.hist-sum b{color:var(--navy)}
+
 /* ── Admin Panel ─────────────────────────────────────────────────────────── */
 .admin-panel{padding:1.25rem 1.75rem}
 .user-table{width:100%;border-collapse:collapse;font-size:13px}
@@ -334,7 +362,8 @@ const GAS_URL = 'https://script.google.com/macros/s/AKfycbzEoHtXonbckhBox36YWsPE
 
   <div class="sidebar-tabs">
     <button class="tab active" onclick="switchTab('booking')">Đặt phòng</button>
-    <button class="tab" onclick="switchTab('invoice')">Hoá đơn</button>
+    <button class="tab" onclick="switchTab('invoice')">Lịch sử</button>
+    <button class="tab" onclick="switchTab('dashboard')">Báo cáo</button>
     <button class="tab admin-only" id="tab_admin_btn" onclick="switchTab('admin')" style="display:none">⚙ Admin</button>
   </div>
 
@@ -571,6 +600,32 @@ const GAS_URL = 'https://script.google.com/macros/s/AKfycbzEoHtXonbckhBox36YWsPE
     <p style="font-size:13px;color:var(--muted)">Chức năng lịch sử hoá đơn sẽ ra mắt sớm.</p>
   </div>
 
+
+  <!-- LỊCH SỬ HOÁ ĐƠN -->
+  <div id="tab_invoice" style="display:none;flex:1;overflow-y:auto;flex-direction:column">
+    <div style="padding:1rem 1.5rem;flex-shrink:0;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <input type="month" id="hist_month" style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--input-bg);color:var(--text);font-family:DM Sans,sans-serif">
+      <button onclick="loadHistory()" style="padding:7px 14px;border-radius:8px;background:var(--navy);color:#fff;border:none;font-size:13px;cursor:pointer;font-family:DM Sans,sans-serif">Tìm kiếm</button>
+      <button onclick="exportCSV()" id="btn_export_csv" style="padding:7px 14px;border-radius:8px;background:none;border:1px solid var(--border);font-size:13px;cursor:pointer;color:var(--text);font-family:DM Sans,sans-serif;margin-left:auto">Xuất CSV</button>
+    </div>
+    <div id="hist_wrap" style="padding:1rem 1.5rem;flex:1;overflow-y:auto">
+      <div style="text-align:center;padding:3rem;color:var(--muted);font-size:13px">Chọn tháng và nhấn Tìm kiếm</div>
+    </div>
+  </div>
+
+  <!-- DASHBOARD BÁO CÁO -->
+  <div id="tab_dashboard" style="display:none;flex:1;overflow-y:auto">
+    <div style="padding:1.25rem 1.5rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+        <div style="font-size:14px;font-weight:500;color:var(--navy)">Tổng quan kinh doanh</div>
+        <button onclick="loadDashboard()" style="padding:6px 12px;border-radius:8px;border:1px solid var(--border);background:#fff;font-size:12px;cursor:pointer;color:var(--muted);font-family:DM Sans,sans-serif">↻ Làm mới</button>
+      </div>
+      <div id="dash_wrap">
+        <div style="text-align:center;padding:3rem;color:var(--muted);font-size:13px">Đang tải dữ liệu...</div>
+      </div>
+    </div>
+  </div>
+
   <!-- ADMIN PANEL – chỉ hiện khi login bằng admin email -->
   <div id="tab_admin" style="display:none;flex:1;overflow-y:auto">
     <div class="admin-panel">
@@ -804,17 +859,24 @@ function autoBankRef(){
   autoBankRef();
   calcNights();
   updateSummary();
+  // Default history month
+  const _m = new Date();
+  const hm = document.getElementById('hist_month');
+  if(hm) hm.value = `${_m.getFullYear()}-${String(_m.getMonth()+1).padStart(2,'0')}`;
 })();
 
 
 // ── ADMIN: switchTab update ───────────────────────────────────────────────────
 function switchTab(t){
-  const tabs = ['booking','invoice','admin'];
+  const tabs = ['booking','invoice','dashboard','admin'];
   document.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('active', tabs[i]===t));
-  document.getElementById('tab_booking').style.display = t==='booking'?'block':'none';
-  document.getElementById('tab_invoice').style.display = t==='invoice'?'block':'none';
-  document.getElementById('tab_admin').style.display   = t==='admin'  ?'block':'none';
-  if(t==='admin') loadUsers();
+  document.getElementById('tab_booking').style.display   = t==='booking'  ?'flex':'none';
+  document.getElementById('tab_invoice').style.display   = t==='invoice'  ?'flex':'none';
+  document.getElementById('tab_dashboard').style.display = t==='dashboard' ?'flex':'none';
+  document.getElementById('tab_admin').style.display     = t==='admin'     ?'flex':'none';
+  if(t==='admin')     loadUsers();
+  if(t==='dashboard') loadDashboard();
+  if(t==='invoice')   { const m=new Date(); document.getElementById('hist_month').value=`${m.getFullYear()}-${String(m.getMonth()+1).padStart(2,'0')}`; loadHistory(); }
 }
 
 // ── ADMIN: enterApp – show admin tab if admin ─────────────────────────────────
@@ -1090,6 +1152,20 @@ function generate(){
   document.getElementById('inv_preview').style.display='block';
   document.getElementById('action_row').style.display='flex';
   document.getElementById('inv_preview').scrollIntoView({behavior:'smooth'});
+
+  // Auto-save to Google Sheet
+  if(authSession) saveInvoiceToSheet({
+    invNo:invno, staff: authSession.email,
+    guestName:gn, guestId:gi, guestPhone:gp,
+    roomType:rt, roomNo:rn, floor:val('floor'),
+    checkIn:ci, checkOut:co, nights:nn,
+    adults:val('pax'), children:val('children'),
+    ratePerNight:rate, roomTotal:room,
+    svcTotal:svcT, subtotal:sub, vat, deposit:dep, total,
+    payMethod:pm, payStatus:ps,
+    bookingSrc:val('bk_src'), purpose:val('purpose'),
+    notes:val('notes')
+  });
 }
 
 // ── Print ─────────────────────────────────────────────────────────────────────
@@ -1099,6 +1175,7 @@ function printDoc(){
   const w=window.open('','_blank','width=960,height=720');
   w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
 <title>Phiếu XN – ${document.getElementById('inv_no').value}</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -1165,6 +1242,7 @@ function exportHTML(){
   if(!inv||!inv.innerHTML.trim()){alert('Vui lòng tạo phiếu trước.');return;}
   const fname=`BinhAnHouse_${document.getElementById('inv_no').value||'invoice'}.html`;
   const blob=new Blob([`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${fname}</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>*{box-sizing:border-box;margin:0;padding:0}:root{--navy:#1A2E44;--muted:#6B7A99;--border:#DDE3ED;--text:#1C2333}body{font-family:'DM Sans',sans-serif;padding:3rem 2rem;max-width:820px;margin:0 auto}.logo-name{font-family:'Playfair Display',serif;font-size:22px;color:#1A2E44}.doc-title{font-family:'Playfair Display',serif;font-size:18px;color:#1A2E44}.inv-top{display:flex;justify-content:space-between;padding-bottom:1.25rem;border-bottom:2px solid #1A2E44;margin-bottom:1.5rem}.logo-addr,.doc-meta,.inv-party p,.tot-line,.inv-terms,.inv-footer{font-size:12px;color:#6B7A99;line-height:1.9}.inv-parties{display:grid;grid-template-columns:1fr 1fr;gap:2rem;margin-bottom:1.5rem;padding-bottom:1.5rem;border-bottom:1px solid #DDE3ED}.inv-party h4{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:#6B7A99;margin-bottom:.4rem;font-weight:600}.inv-stay{background:#F4F8FF;border-radius:8px;padding:.875rem 1.25rem;margin-bottom:1.5rem;display:grid;grid-template-columns:repeat(5,1fr);gap:.5rem}.inv-stay-item .lbl{font-size:10px;color:#6B7A99}.inv-stay-item .val{font-size:13px;font-weight:500;color:#1A2E44;margin-top:3px}.inv-tbl{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:1.5rem}.inv-tbl th{padding:8px 10px;font-size:10px;text-transform:uppercase;color:#6B7A99;border-bottom:1.5px solid #DDE3ED;text-align:left}.inv-tbl td{padding:9px 10px;border-bottom:1px solid #F0F3F8}.inv-tbl td.r,.inv-tbl th.r{text-align:right}.tot-grand{display:flex;justify-content:space-between;padding:8px 0;font-size:15px;font-weight:700;color:#1A2E44;border-top:2px solid #1A2E44;margin-top:6px}.inv-pay-block{background:#F8FAFC;border-radius:8px;padding:1rem 1.25rem;margin-bottom:1.5rem}.pay-tbl{width:100%;border-collapse:collapse;font-size:12px}.pay-tbl th{font-size:10px;text-transform:uppercase;color:#6B7A99;padding:5px 8px;border-bottom:1px solid #DDE3ED}.pay-tbl td{padding:7px 8px;border-bottom:1px solid #EEF1F6}.bank-info{background:#fff;border:1px solid #DDE3ED;border-radius:8px;padding:.875rem 1rem;margin-top:.75rem;font-size:12px;line-height:2}.inv-footer{text-align:center;padding-top:1rem;border-top:1px solid #DDE3ED;font-size:11px;color:#6B7A99}.status-pill{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}.pill-paid,.pill-confirmed{background:#EAF3DE;color:#2D6A4F}.pill-pending{background:#FFFBEB;color:#92400E}.pill-partial{background:#EFF6FF;color:#1E4D8C}.tot-line{display:flex;justify-content:space-between;padding:4px 0}.inv-totals-wrap{display:flex;justify-content:flex-end;margin-bottom:1.5rem}.inv-totals{width:260px}.tot-div{height:1px;background:#DDE3ED;margin:6px 0}.inv-terms{font-size:11px;line-height:1.9;margin-bottom:1rem;padding:0 .5rem}.inv-terms ol{padding-left:16px}</style></head><body>${inv.innerHTML}</body></html>`],{type:'text/html'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=fname; a.click();
@@ -1185,6 +1263,182 @@ function val(id){ return (document.getElementById(id)||{}).value||''; }
 function set(id,v){ const el=document.getElementById(id); if(el)el.textContent=v; }
 function fmtVND(n){ return Number(Math.round(n)).toLocaleString('vi-VN')+' ₫'; }
 function fmtDate(d){ if(!d)return '—'; return new Date(d).toLocaleDateString('vi-VN',{day:'2-digit',month:'2-digit',year:'numeric'}); }
+
+
+// ── SAVE INVOICE (tự động khi nhấn Tạo hoá đơn) ──────────────────────────────
+async function saveInvoiceToSheet(d){
+  if(!GAS_URL || GAS_URL === 'YOUR_GAS_URL_HERE') return;
+  try{
+    await fetch(GAS_URL, {method:'POST', body: JSON.stringify({action:'saveInvoice', data: d})});
+  } catch(e){ console.warn('Save invoice failed:', e); }
+}
+
+// ── HISTORY ───────────────────────────────────────────────────────────────────
+async function loadHistory(){
+  const wrap  = document.getElementById('hist_wrap');
+  const month = document.getElementById('hist_month').value;
+  wrap.innerHTML = '<div style="text-align:center;padding:3rem;color:var(--muted);font-size:13px">Đang tải...</div>';
+  try{
+    const res  = await fetch(GAS_URL, {method:'POST', body: JSON.stringify({action:'getInvoices', requester: authSession.email, month})});
+    const data = await res.json();
+    if(!data.ok){ wrap.innerHTML = `<div style="padding:2rem;color:var(--muted)">${data.msg}</div>`; return; }
+    renderHistory(data.invoices, wrap);
+  } catch(e){ wrap.innerHTML = '<div style="padding:2rem;color:var(--muted)">Lỗi kết nối</div>'; }
+}
+
+function renderHistory(invoices, wrap){
+  if(!invoices.length){ wrap.innerHTML='<div style="text-align:center;padding:3rem;color:var(--muted);font-size:13px">Không có hoá đơn nào trong khoảng thời gian này</div>'; return; }
+  const statusPill = s => s==='paid'?'pill-paid':s==='partial'?'pill-partial':'pill-pending';
+  const statusLbl  = s => s==='paid'?'Đã TT':s==='partial'?'Một phần':'Chưa TT';
+  let totalRev = invoices.reduce((a,i)=>a+(parseFloat(i.total)||0),0);
+  let html = `<div style="overflow-x:auto"><table class="hist-table"><thead><tr>
+    <th>Số HĐ</th><th>Ngày</th><th>Khách</th><th>Phòng</th><th>Check-in</th><th>Đêm</th><th>Tổng TT</th><th>Trạng thái</th><th>Nguồn</th>
+  </tr></thead><tbody>`;
+  invoices.forEach(i=>{
+    const d = new Date(i.createdAt);
+    html += `<tr>
+      <td style="font-weight:500;color:var(--navy)">${i.invNo}</td>
+      <td style="white-space:nowrap">${d.toLocaleDateString('vi-VN')}</td>
+      <td>${i.guestName||'—'}</td>
+      <td>${i.roomNo||'—'} – ${(i.roomType||'').split('(')[0].trim()}</td>
+      <td style="white-space:nowrap">${i.checkIn||'—'}</td>
+      <td style="text-align:center">${i.nights||'—'}</td>
+      <td style="text-align:right;font-weight:500">${fmtVND(i.total)}</td>
+      <td><span class="${statusPill(i.payStatus)}">${statusLbl(i.payStatus)}</span></td>
+      <td style="font-size:11px;color:var(--muted)">${i.bookingSrc||'—'}</td>
+    </tr>`;
+  });
+  html += `</tbody></table></div>
+  <div class="hist-sum">
+    <span>${invoices.length} hoá đơn</span>
+    <span>Tổng doanh thu: <b>${fmtVND(totalRev)}</b></span>
+    <span>Trung bình: <b>${fmtVND(totalRev/invoices.length)}</b></span>
+  </div>`;
+  wrap.innerHTML = html;
+}
+
+// ── EXPORT CSV ────────────────────────────────────────────────────────────────
+async function exportCSV(){
+  const month = document.getElementById('hist_month').value;
+  const btn = document.getElementById('btn_export_csv');
+  btn.textContent = 'Đang xuất...'; btn.disabled = true;
+  try{
+    const res  = await fetch(GAS_URL, {method:'POST', body: JSON.stringify({action:'exportCSV', requester: authSession.email, month})});
+    const data = await res.json();
+    if(!data.ok){ alert(data.msg); return; }
+    const blob = new Blob(['﻿'+data.csv], {type:'text/csv;charset=utf-8'});
+    const a    = document.createElement('a');
+    a.href     = URL.createObjectURL(blob);
+    a.download = `BinhAnHouse_HoaDon${month||'_TatCa'}.csv`;
+    a.click();
+  } catch(e){ alert('Lỗi xuất CSV'); }
+  btn.textContent = 'Xuất CSV'; btn.disabled = false;
+}
+
+// ── DASHBOARD ─────────────────────────────────────────────────────────────────
+let revenueChart = null;
+async function loadDashboard(){
+  const wrap = document.getElementById('dash_wrap');
+  wrap.innerHTML = '<div style="text-align:center;padding:3rem;color:var(--muted);font-size:13px">Đang tải...</div>';
+  try{
+    const res  = await fetch(GAS_URL, {method:'POST', body: JSON.stringify({action:'getStats', requester: authSession.email})});
+    const data = await res.json();
+    if(!data.ok){ wrap.innerHTML = `<div style="padding:2rem;color:var(--muted)">${data.msg}</div>`; return; }
+    renderDashboard(data.stats, wrap);
+  } catch(e){ wrap.innerHTML = '<div style="padding:2rem;color:var(--muted)">Lỗi kết nối</div>'; }
+}
+
+function renderDashboard(s, wrap){
+  const growthHtml = s.growthPct !== null
+    ? `<div class="kpi-growth ${s.growthPct>=0?'growth-up':'growth-dn'}">${s.growthPct>=0?'▲':'▼'} ${Math.abs(s.growthPct)}% so với tháng trước</div>`
+    : '';
+
+  // Source bars
+  const maxSrc = Math.max(1,...Object.values(s.bySource));
+  const srcBars = Object.entries(s.bySource).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`
+    <div class="src-bar">
+      <div class="src-bar-label">${k}</div>
+      <div style="flex:1;background:#F0F4F8;border-radius:4px;height:8px">
+        <div class="src-bar-fill" style="width:${Math.round(v/maxSrc*100)}%;background:var(--sea)"></div>
+      </div>
+      <div class="src-bar-count">${v} đơn</div>
+    </div>`).join('');
+
+  // Room type bars
+  const maxRoom = Math.max(1,...Object.values(s.byRoom));
+  const roomBars = Object.entries(s.byRoom).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`
+    <div class="src-bar">
+      <div class="src-bar-label" style="font-size:11px">${k}</div>
+      <div style="flex:1;background:#F0F4F8;border-radius:4px;height:8px">
+        <div class="src-bar-fill" style="width:${Math.round(v/maxRoom*100)}%;background:var(--green)"></div>
+      </div>
+      <div class="src-bar-count">${v}</div>
+    </div>`).join('');
+
+  wrap.innerHTML = `
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">Doanh thu tháng này</div>
+        <div class="kpi-value">${fmtVND(s.thisMonthRev)}</div>
+        ${growthHtml}
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Công suất phòng</div>
+        <div class="kpi-value">${s.occupancy}%</div>
+        <div class="kpi-sub">${s.totalNights} đêm / tháng này</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Tổng hoá đơn</div>
+        <div class="kpi-value">${s.totalInvoices}</div>
+        <div class="kpi-sub">Tổng doanh thu: ${fmtVND(s.totalRevenue)}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Trạng thái TT</div>
+        <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+          <span class="pill-paid">${s.byStatus.paid} Đã TT</span>
+          <span class="pill-partial">${s.byStatus.partial} Một phần</span>
+          <span class="pill-pending">${s.byStatus.pending} Chưa TT</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <h4>Doanh thu 6 tháng gần nhất</h4>
+      <canvas id="revenue_chart" height="140"></canvas>
+    </div>
+
+    <div class="chart-card">
+      <h4>Nguồn đặt phòng</h4>
+      ${srcBars || '<div style="color:var(--muted);font-size:12px">Chưa có dữ liệu</div>'}
+    </div>
+
+    <div class="chart-card">
+      <h4>Loại phòng được đặt nhiều nhất</h4>
+      ${roomBars || '<div style="color:var(--muted);font-size:12px">Chưa có dữ liệu</div>'}
+    </div>`;
+
+  // Render Chart.js
+  if(revenueChart) revenueChart.destroy();
+  const ctx = document.getElementById('revenue_chart').getContext('2d');
+  revenueChart = new Chart(ctx, {
+    type:'bar',
+    data:{
+      labels: s.chartData.map(d=>d.label),
+      datasets:[{
+        label:'Doanh thu (VND)',
+        data: s.chartData.map(d=>d.revenue),
+        backgroundColor:'rgba(14,107,168,.75)',
+        borderRadius:6, borderSkipped:false
+      }]
+    },
+    options:{
+      responsive:true, plugins:{legend:{display:false},
+        tooltip:{callbacks:{label:c=>' '+fmtVND(c.raw)}}},
+      scales:{y:{ticks:{callback:v=>fmtVND(v)},grid:{color:'#F0F4F8'}},
+              x:{grid:{display:false}}}
+    }
+  });
+}
 
 // ── Sidebar Drag Resize ────────────────────────────────────────────────────────
 (function(){
