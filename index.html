@@ -595,12 +595,6 @@ const GAS_URL = 'https://script.google.com/macros/s/AKfycbwSio-xhR1JKCX_dzakhvgh
 
   </div><!-- end form-scroll -->
 
-  <!-- Invisible tab: Invoice-specific (future use) -->
-  <div id="tab_invoice" style="display:none;padding:1rem 1.5rem;flex:1">
-    <p style="font-size:13px;color:var(--muted)">Chức năng lịch sử hoá đơn sẽ ra mắt sớm.</p>
-  </div>
-
-
   <!-- LỊCH SỬ HOÁ ĐƠN -->
   <div id="tab_invoice" style="display:none;flex:1;overflow-y:auto;flex-direction:column">
     <div style="padding:1rem 1.5rem;flex-shrink:0;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -698,7 +692,7 @@ async function sendOTP(){
   btn.disabled = true; btn.textContent = 'Đang gửi...';
   showMsg('email','','info');
   try{
-    const res = await fetch(GAS_URL, {method:'POST', body: JSON.stringify({action:'sendOTP', email})});
+    const res = await fetch(GAS_URL, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, redirect:'follow', body: JSON.stringify({action:'sendOTP', email})});
     const data = await res.json();
     if(data.ok){
       document.getElementById('otp_email_display').textContent = email;
@@ -721,7 +715,7 @@ async function verifyOTP(){
   const btn = document.getElementById('btn_verify');
   btn.disabled = true; btn.textContent = 'Đang xác nhận...';
   try{
-    const res = await fetch(GAS_URL, {method:'POST', body: JSON.stringify({action:'verifyOTP', email, otp})});
+    const res = await fetch(GAS_URL, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, redirect:'follow', body: JSON.stringify({action:'verifyOTP', email, otp})});
     const data = await res.json();
     if(data.ok){
       authSession = {email, role: data.role, name: data.name};
@@ -734,18 +728,6 @@ async function verifyOTP(){
   btn.disabled = false; btn.textContent = 'Xác nhận đăng nhập';
 }
 
-function enterApp(){
-  document.getElementById('auth_overlay').classList.add('hidden');
-  document.getElementById('app_shell').style.display = 'flex';
-  document.getElementById('bar_email').textContent = authSession.name || authSession.email;
-  document.getElementById('bar_role').textContent  = authSession.role === 'admin' ? 'Admin' : 'Nhân viên';
-  // Show admin tab only for admin
-  if(authSession.role !== 'admin'){
-    const adminItems = document.querySelectorAll('.admin-only');
-    adminItems.forEach(el => el.style.display = 'none');
-  }
-}
-
 function logout(){
   authSession = null;
   document.getElementById('auth_overlay').classList.remove('hidden');
@@ -755,6 +737,18 @@ function logout(){
   document.getElementById('auth_email').value = '';
   document.getElementById('auth_otp').value = '';
   showMsg('email','','');
+}
+
+function enterApp(){
+  document.getElementById('auth_overlay').classList.add('hidden');
+  document.getElementById('app_shell').style.display = 'flex';
+  document.getElementById('bar_email').textContent = authSession.name || authSession.email;
+  document.getElementById('bar_role').textContent  = authSession.role === 'admin' ? 'Admin' : 'Nhân viên';
+  if(authSession.role === 'admin'){
+    document.getElementById('tab_admin_btn').style.display = '';
+  } else {
+    document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
+  }
 }
 
 function backToEmail(){
@@ -807,7 +801,7 @@ async function registerUser(){
   const btn = document.getElementById('btn_reg');
   btn.disabled = true; btn.textContent = 'Đang gửi...';
   try{
-    const res  = await fetch(GAS_URL, {method:'POST', body: JSON.stringify({action:'register', name, email, phone, jobRole: role})});
+    const res  = await fetch(GAS_URL, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, redirect:'follow', body: JSON.stringify({action:'register', name, email, phone, jobRole: role})});
     const data = await res.json();
     if(data.ok){
       ['step_email','step_otp','step_register'].forEach(id=>document.getElementById(id).classList.remove('active'));
@@ -870,33 +864,22 @@ function autoBankRef(){
 function switchTab(t){
   const tabs = ['booking','invoice','dashboard','admin'];
   document.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('active', tabs[i]===t));
-  document.getElementById('tab_booking').style.display   = t==='booking'  ?'flex':'none';
-  document.getElementById('tab_invoice').style.display   = t==='invoice'  ?'flex':'none';
-  document.getElementById('tab_dashboard').style.display = t==='dashboard' ?'flex':'none';
-  document.getElementById('tab_admin').style.display     = t==='admin'     ?'flex':'none';
+  document.getElementById('tab_booking').style.display   = t==='booking'   ? 'block' : 'none';
+  document.getElementById('tab_invoice').style.display   = t==='invoice'   ? 'flex'  : 'none';
+  document.getElementById('tab_dashboard').style.display = t==='dashboard' ? 'flex'  : 'none';
+  document.getElementById('tab_admin').style.display     = t==='admin'     ? 'flex'  : 'none';
   if(t==='admin')     loadUsers();
   if(t==='dashboard') loadDashboard();
   if(t==='invoice')   { const m=new Date(); document.getElementById('hist_month').value=`${m.getFullYear()}-${String(m.getMonth()+1).padStart(2,'0')}`; loadHistory(); }
 }
 
 // ── ADMIN: enterApp – show admin tab if admin ─────────────────────────────────
-const _origEnterApp = typeof enterApp === 'function' ? enterApp : null;
-function enterApp(){
-  document.getElementById('auth_overlay').classList.add('hidden');
-  document.getElementById('app_shell').style.display = 'flex';
-  document.getElementById('bar_email').textContent = authSession.name || authSession.email;
-  document.getElementById('bar_role').textContent  = authSession.role === 'admin' ? 'Admin' : 'Nhân viên';
-  if(authSession.role === 'admin'){
-    document.getElementById('tab_admin_btn').style.display = '';
-  }
-}
-
 // ── ADMIN: Load users from GAS ────────────────────────────────────────────────
 async function loadUsers(){
   const wrap = document.getElementById('user_list_wrap');
   wrap.innerHTML = '<div class="empty-users">Đang tải...</div>';
   try{
-    const res  = await fetch(GAS_URL, {method:'POST', body: JSON.stringify({action:'listUsers', requester: authSession.email})});
+    const res  = await fetch(GAS_URL, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, redirect:'follow', body: JSON.stringify({action:'listUsers', requester: authSession.email})});
     const data = await res.json();
     if(!data.ok){ wrap.innerHTML = `<div class="empty-users">${data.msg}</div>`; return; }
     renderUserTable(data.users, wrap);
@@ -945,21 +928,21 @@ function renderUserTable(users, wrap){
 
 async function approveUser(email){
   if(!confirm(`Duyệt tài khoản ${email}?`)) return;
-  const res  = await fetch(GAS_URL, {method:'POST', body: JSON.stringify({action:'approveUser', email, requester: authSession.email})});
+  const res  = await fetch(GAS_URL, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, redirect:'follow', body: JSON.stringify({action:'approveUser', email, requester: authSession.email})});
   const data = await res.json();
   alert(data.msg); loadUsers();
 }
 
 async function rejectUser(email){
   if(!confirm(`Từ chối và xoá yêu cầu của ${email}?`)) return;
-  const res  = await fetch(GAS_URL, {method:'POST', body: JSON.stringify({action:'rejectUser', email, requester: authSession.email})});
+  const res  = await fetch(GAS_URL, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, redirect:'follow', body: JSON.stringify({action:'rejectUser', email, requester: authSession.email})});
   const data = await res.json();
   alert(data.msg); loadUsers();
 }
 
 async function removeUser(email){
   if(!confirm(`Xoá tài khoản ${email}?`)) return;
-  const res  = await fetch(GAS_URL, {method:'POST', body: JSON.stringify({action:'removeUser', email, requester: authSession.email})});
+  const res  = await fetch(GAS_URL, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, redirect:'follow', body: JSON.stringify({action:'removeUser', email, requester: authSession.email})});
   const data = await res.json();
   alert(data.msg); loadUsers();
 }
@@ -1175,7 +1158,7 @@ function printDoc(){
   const w=window.open('','_blank','width=960,height=720');
   w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
 <title>Phiếu XN – ${document.getElementById('inv_no').value}</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"><\/script>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -1242,7 +1225,7 @@ function exportHTML(){
   if(!inv||!inv.innerHTML.trim()){alert('Vui lòng tạo phiếu trước.');return;}
   const fname=`BinhAnHouse_${document.getElementById('inv_no').value||'invoice'}.html`;
   const blob=new Blob([`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${fname}</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"><\/script>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>*{box-sizing:border-box;margin:0;padding:0}:root{--navy:#1A2E44;--muted:#6B7A99;--border:#DDE3ED;--text:#1C2333}body{font-family:'DM Sans',sans-serif;padding:3rem 2rem;max-width:820px;margin:0 auto}.logo-name{font-family:'Playfair Display',serif;font-size:22px;color:#1A2E44}.doc-title{font-family:'Playfair Display',serif;font-size:18px;color:#1A2E44}.inv-top{display:flex;justify-content:space-between;padding-bottom:1.25rem;border-bottom:2px solid #1A2E44;margin-bottom:1.5rem}.logo-addr,.doc-meta,.inv-party p,.tot-line,.inv-terms,.inv-footer{font-size:12px;color:#6B7A99;line-height:1.9}.inv-parties{display:grid;grid-template-columns:1fr 1fr;gap:2rem;margin-bottom:1.5rem;padding-bottom:1.5rem;border-bottom:1px solid #DDE3ED}.inv-party h4{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:#6B7A99;margin-bottom:.4rem;font-weight:600}.inv-stay{background:#F4F8FF;border-radius:8px;padding:.875rem 1.25rem;margin-bottom:1.5rem;display:grid;grid-template-columns:repeat(5,1fr);gap:.5rem}.inv-stay-item .lbl{font-size:10px;color:#6B7A99}.inv-stay-item .val{font-size:13px;font-weight:500;color:#1A2E44;margin-top:3px}.inv-tbl{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:1.5rem}.inv-tbl th{padding:8px 10px;font-size:10px;text-transform:uppercase;color:#6B7A99;border-bottom:1.5px solid #DDE3ED;text-align:left}.inv-tbl td{padding:9px 10px;border-bottom:1px solid #F0F3F8}.inv-tbl td.r,.inv-tbl th.r{text-align:right}.tot-grand{display:flex;justify-content:space-between;padding:8px 0;font-size:15px;font-weight:700;color:#1A2E44;border-top:2px solid #1A2E44;margin-top:6px}.inv-pay-block{background:#F8FAFC;border-radius:8px;padding:1rem 1.25rem;margin-bottom:1.5rem}.pay-tbl{width:100%;border-collapse:collapse;font-size:12px}.pay-tbl th{font-size:10px;text-transform:uppercase;color:#6B7A99;padding:5px 8px;border-bottom:1px solid #DDE3ED}.pay-tbl td{padding:7px 8px;border-bottom:1px solid #EEF1F6}.bank-info{background:#fff;border:1px solid #DDE3ED;border-radius:8px;padding:.875rem 1rem;margin-top:.75rem;font-size:12px;line-height:2}.inv-footer{text-align:center;padding-top:1rem;border-top:1px solid #DDE3ED;font-size:11px;color:#6B7A99}.status-pill{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}.pill-paid,.pill-confirmed{background:#EAF3DE;color:#2D6A4F}.pill-pending{background:#FFFBEB;color:#92400E}.pill-partial{background:#EFF6FF;color:#1E4D8C}.tot-line{display:flex;justify-content:space-between;padding:4px 0}.inv-totals-wrap{display:flex;justify-content:flex-end;margin-bottom:1.5rem}.inv-totals{width:260px}.tot-div{height:1px;background:#DDE3ED;margin:6px 0}.inv-terms{font-size:11px;line-height:1.9;margin-bottom:1rem;padding:0 .5rem}.inv-terms ol{padding-left:16px}</style></head><body>${inv.innerHTML}</body></html>`],{type:'text/html'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=fname; a.click();
@@ -1265,12 +1248,67 @@ function fmtVND(n){ return Number(Math.round(n)).toLocaleString('vi-VN')+' ₫';
 function fmtDate(d){ if(!d)return '—'; return new Date(d).toLocaleDateString('vi-VN',{day:'2-digit',month:'2-digit',year:'numeric'}); }
 
 
+// ── LOCAL STORAGE HELPERS ─────────────────────────────────────────────────────
+const LS_KEY = 'bah_invoices';
+
+function localSaveInvoice(d){
+  try{
+    const list = localGetInvoices();
+    const idx = list.findIndex(x => x.invNo === d.invNo);
+    if(idx >= 0) list[idx] = {...d, createdAt: list[idx].createdAt};
+    else list.unshift({...d, createdAt: new Date().toISOString()});
+    localStorage.setItem(LS_KEY, JSON.stringify(list));
+  } catch(e){ console.warn('localStorage save failed:', e); }
+}
+
+function localGetInvoices(month){
+  try{
+    const list = JSON.parse(localStorage.getItem(LS_KEY) || '[]');
+    if(!month) return list;
+    return list.filter(i => {
+      const d = new Date(i.createdAt);
+      const m = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      return m === month;
+    });
+  } catch(e){ return []; }
+}
+
+function localComputeStats(){
+  const all    = localGetInvoices();
+  const now    = new Date();
+  const thisMY = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const prevD  = new Date(now.getFullYear(), now.getMonth()-1, 1);
+  const prevMY = `${prevD.getFullYear()}-${String(prevD.getMonth()+1).padStart(2,'0')}`;
+  const thisMonth = localGetInvoices(thisMY);
+  const sumRev = arr => arr.reduce((a,i) => a+(parseFloat(i.total)||0), 0);
+  const thisRev = sumRev(thisMonth), prevRev = sumRev(localGetInvoices(prevMY));
+  const growthPct = prevRev > 0 ? Math.round((thisRev - prevRev)/prevRev*100) : null;
+  const byStatus = {paid:0,partial:0,pending:0}, bySource = {}, byRoom = {};
+  all.forEach(i => {
+    const s = i.payStatus||'pending'; if(byStatus[s]!==undefined) byStatus[s]++;
+    const src = i.bookingSrc||'Khác'; bySource[src] = (bySource[src]||0)+1;
+    const rt = (i.roomType||'Không rõ').split('(')[0].trim(); byRoom[rt] = (byRoom[rt]||0)+1;
+  });
+  const chartData = [];
+  for(let i=5;i>=0;i--){
+    const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    chartData.push({label: d.toLocaleDateString('vi-VN',{month:'short',year:'2-digit'}), revenue: sumRev(localGetInvoices(key))});
+  }
+  return { thisMonthRev:thisRev, growthPct,
+    occupancy: thisMonth.length>0 ? Math.min(100,Math.round(thisMonth.reduce((a,i)=>a+(parseInt(i.nights)||0),0)/30*100)) : 0,
+    totalNights: thisMonth.reduce((a,i)=>a+(parseInt(i.nights)||0),0),
+    totalInvoices: all.length, totalRevenue: sumRev(all),
+    byStatus, bySource, byRoom, chartData };
+}
+
 // ── SAVE INVOICE (tự động khi nhấn Tạo hoá đơn) ──────────────────────────────
 async function saveInvoiceToSheet(d){
+  localSaveInvoice(d); // Luôn lưu cục bộ trước
   if(!GAS_URL || GAS_URL === 'YOUR_GAS_URL_HERE') return;
   try{
-    await fetch(GAS_URL, {method:'POST', body: JSON.stringify({action:'saveInvoice', data: d})});
-  } catch(e){ console.warn('Save invoice failed:', e); }
+    await fetch(GAS_URL, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, redirect:'follow', body: JSON.stringify({action:'saveInvoice', data: d})});
+  } catch(e){ console.warn('GAS save failed (đã lưu cục bộ):', e); }
 }
 
 // ── HISTORY ───────────────────────────────────────────────────────────────────
@@ -1279,15 +1317,26 @@ async function loadHistory(){
   const month = document.getElementById('hist_month').value;
   wrap.innerHTML = '<div style="text-align:center;padding:3rem;color:var(--muted);font-size:13px">Đang tải...</div>';
   try{
-    const res  = await fetch(GAS_URL, {method:'POST', body: JSON.stringify({action:'getInvoices', requester: authSession.email, month})});
+    const ctrl = new AbortController();
+    const tid  = setTimeout(() => ctrl.abort(), 7000);
+    const res  = await fetch(GAS_URL, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, redirect:'follow', signal:ctrl.signal, body: JSON.stringify({action:'getInvoices', requester: authSession.email, month})});
+    clearTimeout(tid);
     const data = await res.json();
     if(!data.ok){ wrap.innerHTML = `<div style="padding:2rem;color:var(--muted)">${data.msg}</div>`; return; }
     renderHistory(data.invoices, wrap);
-  } catch(e){ wrap.innerHTML = '<div style="padding:2rem;color:var(--muted)">Lỗi kết nối</div>'; }
+  } catch(e){
+    const local = localGetInvoices(month);
+    const banner = '<div style="background:#FFFBEB;border:1px solid #F6D860;border-radius:8px;padding:8px 14px;font-size:12px;color:#92400E;margin-bottom:10px">⚠ Không kết nối được máy chủ – đang hiển thị dữ liệu lưu trên máy này</div>';
+    if(local.length > 0){ wrap.innerHTML = banner; renderHistory(local, wrap, true); }
+    else wrap.innerHTML = '<div style="padding:2rem;color:var(--muted);font-size:13px;text-align:center">Không kết nối được máy chủ và chưa có dữ liệu cục bộ cho tháng này.<br><span style="font-size:11px">Hãy tạo hoá đơn để dữ liệu được lưu tự động.</span></div>';
+  }
 }
 
-function renderHistory(invoices, wrap){
-  if(!invoices.length){ wrap.innerHTML='<div style="text-align:center;padding:3rem;color:var(--muted);font-size:13px">Không có hoá đơn nào trong khoảng thời gian này</div>'; return; }
+function renderHistory(invoices, wrap, append=false){
+  if(!invoices.length){
+    const msg='<div style="text-align:center;padding:3rem;color:var(--muted);font-size:13px">Không có hoá đơn nào trong khoảng thời gian này</div>';
+    if(append) wrap.innerHTML += msg; else wrap.innerHTML = msg; return;
+  }
   const statusPill = s => s==='paid'?'pill-paid':s==='partial'?'pill-partial':'pill-pending';
   const statusLbl  = s => s==='paid'?'Đã TT':s==='partial'?'Một phần':'Chưa TT';
   let totalRev = invoices.reduce((a,i)=>a+(parseFloat(i.total)||0),0);
@@ -1314,24 +1363,43 @@ function renderHistory(invoices, wrap){
     <span>Tổng doanh thu: <b>${fmtVND(totalRev)}</b></span>
     <span>Trung bình: <b>${fmtVND(totalRev/invoices.length)}</b></span>
   </div>`;
-  wrap.innerHTML = html;
+  if(append) wrap.innerHTML += html; else wrap.innerHTML = html;
 }
 
 // ── EXPORT CSV ────────────────────────────────────────────────────────────────
+function buildCSVLocal(invoices){
+  const hdr = ['Số HĐ','Ngày lập','Khách','SĐT','Loại phòng','Phòng','Check-in','Check-out','Đêm','Giá/đêm','Dịch vụ','VAT','Đặt cọc','Tổng TT','Trạng thái TT','Nguồn','Nhân viên'];
+  const rows = invoices.map(i=>[
+    i.invNo, i.createdAt?new Date(i.createdAt).toLocaleDateString('vi-VN'):'',
+    i.guestName||'', i.guestPhone||'', i.roomType||'', i.roomNo||'',
+    i.checkIn||'', i.checkOut||'', i.nights||0,
+    i.ratePerNight||0, i.svcTotal||0, i.vat||0, i.deposit||0, i.total||0,
+    i.payStatus||'', i.bookingSrc||'', i.staff||''
+  ].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(','));
+  return [hdr.join(','), ...rows].join('\r\n');
+}
+
 async function exportCSV(){
   const month = document.getElementById('hist_month').value;
   const btn = document.getElementById('btn_export_csv');
   btn.textContent = 'Đang xuất...'; btn.disabled = true;
   try{
-    const res  = await fetch(GAS_URL, {method:'POST', body: JSON.stringify({action:'exportCSV', requester: authSession.email, month})});
+    const ctrl = new AbortController();
+    const tid  = setTimeout(() => ctrl.abort(), 7000);
+    const res  = await fetch(GAS_URL, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, redirect:'follow', signal:ctrl.signal, body: JSON.stringify({action:'exportCSV', requester: authSession.email, month})});
+    clearTimeout(tid);
     const data = await res.json();
-    if(!data.ok){ alert(data.msg); return; }
-    const blob = new Blob(['﻿'+data.csv], {type:'text/csv;charset=utf-8'});
-    const a    = document.createElement('a');
-    a.href     = URL.createObjectURL(blob);
-    a.download = `BinhAnHouse_HoaDon${month||'_TatCa'}.csv`;
-    a.click();
-  } catch(e){ alert('Lỗi xuất CSV'); }
+    if(!data.ok){ alert(data.msg); btn.textContent='Xuất CSV'; btn.disabled=false; return; }
+    const blob = new Blob(['\ufeff'+data.csv], {type:'text/csv;charset=utf-8'});
+    const a = document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download=`BinhAnHouse_HoaDon${month||'_TatCa'}.csv`; a.click();
+  } catch(e){
+    const local = localGetInvoices(month);
+    if(!local.length){ alert('Không có dữ liệu để xuất'); btn.textContent='Xuất CSV'; btn.disabled=false; return; }
+    const blob = new Blob(['\ufeff'+buildCSVLocal(local)], {type:'text/csv;charset=utf-8'});
+    const a = document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download=`BinhAnHouse_HoaDon${month||'_TatCa'}_local.csv`; a.click();
+  }
   btn.textContent = 'Xuất CSV'; btn.disabled = false;
 }
 
@@ -1341,14 +1409,22 @@ async function loadDashboard(){
   const wrap = document.getElementById('dash_wrap');
   wrap.innerHTML = '<div style="text-align:center;padding:3rem;color:var(--muted);font-size:13px">Đang tải...</div>';
   try{
-    const res  = await fetch(GAS_URL, {method:'POST', body: JSON.stringify({action:'getStats', requester: authSession.email})});
+    const ctrl = new AbortController();
+    const tid  = setTimeout(() => ctrl.abort(), 7000);
+    const res  = await fetch(GAS_URL, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, redirect:'follow', signal:ctrl.signal, body: JSON.stringify({action:'getStats', requester: authSession.email})});
+    clearTimeout(tid);
     const data = await res.json();
     if(!data.ok){ wrap.innerHTML = `<div style="padding:2rem;color:var(--muted)">${data.msg}</div>`; return; }
     renderDashboard(data.stats, wrap);
-  } catch(e){ wrap.innerHTML = '<div style="padding:2rem;color:var(--muted)">Lỗi kết nối</div>'; }
+  } catch(e){
+    const banner = '<div style="background:#FFFBEB;border:1px solid #F6D860;border-radius:8px;padding:8px 14px;font-size:12px;color:#92400E;margin-bottom:12px">⚠ Không kết nối được máy chủ – đang hiển thị số liệu từ dữ liệu lưu trên máy này</div>';
+    if(localGetInvoices().length === 0)
+      wrap.innerHTML = banner + '<div style="padding:1rem;color:var(--muted);font-size:13px;text-align:center">Chưa có hoá đơn nào được lưu trên máy này.<br><span style="font-size:11px">Hãy tạo hoá đơn để dữ liệu được lưu tự động.</span></div>';
+    else { wrap.innerHTML = banner; renderDashboard(localComputeStats(), wrap, true); }
+  }
 }
 
-function renderDashboard(s, wrap){
+function renderDashboard(s, wrap, append=false){
   const growthHtml = s.growthPct !== null
     ? `<div class="kpi-growth ${s.growthPct>=0?'growth-up':'growth-dn'}">${s.growthPct>=0?'▲':'▼'} ${Math.abs(s.growthPct)}% so với tháng trước</div>`
     : '';
@@ -1375,7 +1451,7 @@ function renderDashboard(s, wrap){
       <div class="src-bar-count">${v}</div>
     </div>`).join('');
 
-  wrap.innerHTML = `
+  const content = `
     <div class="kpi-grid">
       <div class="kpi-card">
         <div class="kpi-label">Doanh thu tháng này</div>
@@ -1416,6 +1492,7 @@ function renderDashboard(s, wrap){
       <h4>Loại phòng được đặt nhiều nhất</h4>
       ${roomBars || '<div style="color:var(--muted);font-size:12px">Chưa có dữ liệu</div>'}
     </div>`;
+  if(append) wrap.innerHTML += content; else wrap.innerHTML = content;
 
   // Render Chart.js
   if(revenueChart) revenueChart.destroy();
